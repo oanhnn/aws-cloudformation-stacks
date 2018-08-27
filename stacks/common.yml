@@ -17,6 +17,7 @@ Parameters:
     Type: String
     MinLength: 1
     MaxLength: 255
+    Default: oanhnn-aws-cfn
 
   TemplateKey:
     Description: The S3 Key for AWS CloudFormation template directory.
@@ -24,6 +25,7 @@ Parameters:
     MinLength: 1
     MaxLength: 255
     AllowedPattern: ^[A-Za-z0-9+-_]+(/[A-Za-z0-9+-_]+)*$
+    Default: master/templates
 
   VpcCIDR:
     Description: Please enter the IP range (CIDR notation) for this VPC

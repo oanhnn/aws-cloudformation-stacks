@@ -4,7 +4,7 @@
 
 ## Stacks
 
-- [x] [Common stack](docs/common-stack.md)
+- [x] [Common stack](docs/common-stack.md) [![Launch Stack](docs/img/launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=common-stack&templateURL=https://s3-ap-southeast-1.amazonaws.com/oanhnnn-aws-cfn/master/stacks/common.yml)
 
 ## Contributing
 
