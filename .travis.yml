@@ -3,6 +3,7 @@ language: python
 env:
   global:
     - AWS_S3_BUCKET=oanhnn-aws-cfn
+    - AWS_DEFAULT_REGION=ap-southeast-1
     # - AWS_KEY
     # - AWS_SECRET
 
@@ -19,17 +20,17 @@ before_script:
 
 script:
   - yamllint .
-  - find ./templates -type f -name *.yml | while read file; do set -ex && cfn-lint -i E2520 -t "$file"; done;
-  - find ./stacks    -type f -name *.yml | while read file; do set -ex && cfn-lint -i E2520 -t "$file"; done;
-  - find ./templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$AWS_S3_KEY/$file" && aws cloudformation validate-template --template-url "https://s3.amazonaws.com/$AWS_S3_BUCKET/$AWS_S3_KEY/$file" > /dev/null; done;
-  - find ./stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$AWS_S3_KEY/$file" && aws cloudformation validate-template --template-url "https://s3.amazonaws.com/$AWS_S3_BUCKET/$AWS_S3_KEY/$file" > /dev/null; done;
+  - find templates -type f -name *.yml | while read file; do set -ex && cfn-lint -i E2520 -t "$file"; done;
+  - find stacks    -type f -name *.yml | while read file; do set -ex && cfn-lint -i E2520 -t "$file"; done;
+  - find templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$AWS_S3_KEY/$file" && aws cloudformation validate-template --template-url "https://s3.amazonaws.com/$AWS_S3_BUCKET/$AWS_S3_KEY/$file" > /dev/null; done;
+  - find stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$AWS_S3_KEY/$file" && aws cloudformation validate-template --template-url "https://s3.amazonaws.com/$AWS_S3_BUCKET/$AWS_S3_KEY/$file" > /dev/null; done;
 
 after_success:
   - if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
-      find ./templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/master/$file" > /dev/null; done;
-      find ./stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/master/$file" > /dev/null; done;
+      find templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/master/$file" > /dev/null; done;
+      find stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/master/$file" > /dev/null; done;
     fi
   - if [[ ! -z "$TRAVIS_TAG" ]]; then
-      find ./templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$TRAVIS_TAG/$file" > /dev/null; done;
-      find ./stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$TRAVIS_TAG/$file" > /dev/null; done;
+      find templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$TRAVIS_TAG/$file" > /dev/null; done;
+      find stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$TRAVIS_TAG/$file" > /dev/null; done;
     fi
