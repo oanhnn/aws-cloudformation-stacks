@@ -1,0 +1,13 @@
+---
+ignore: |
+   .travis.yml
+
+extends: default
+
+rules:
+  indentation:
+    indent-sequences: true
+  line-length:
+    max: 500
+  comments:
+    min-spaces-from-content: 1
