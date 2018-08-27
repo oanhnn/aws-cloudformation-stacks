@@ -1,10 +1,23 @@
 # oanhnn/aws-cloundformation-stacks
 
-[![Build Status](https://travis-ci.org/oanhnn/aws-cloundformation-stacks.svg?branch=master)](https://travis-ci.org/oanhnn/aws-cloundformation-stacks)
+[![Build Status](https://travis-ci.org/oanhnn/aws-cloudformation-stacks.svg?branch=master)](https://travis-ci.org/oanhnn/aws-cloudformation-stacks)
+
+## Templates
+
+- [x] [SNS Alert](docs/templates/alert.md)
+- [x] [VPC](docs/templates/vpc.md)
+- [x] [S3 Bucket](docs/templates/s3-bucket.md)
+- [x] [VPC Endpoint to S3](docs/templates/s3-endpoint.md)
+- [x] [Client Security Group](docs/templates/client-sg.md)
+- [x] [Bastion](docs/templates/bastion.md)
+- [x] [Aurora with MySQL Engine](docs/templates/aurora-mysql.md)
+- [x] [ElastiCache with Redis Engine](docs/templates/elasticache-redis.md)
 
 ## Stacks
 
-- [x] [Common stack](docs/common-stack.md) [![Launch Stack](docs/img/launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=common-stack&templateURL=https://s3-ap-southeast-1.amazonaws.com/oanhnnn-aws-cfn/master/stacks/common.yml)
+| Stack                                     | Actions |
+|-------------------------------------------|---------|
+| [Common stack](docs/stacks/common.md)     | [![Launch Stack](docs/img/launch-stack.png)](https://console.aws.amazon.com/cloudformation/home#/stacks/new?stackName=common-stack&templateURL=https://s3-ap-southeast-1.amazonaws.com/oanhnn-aws-cfn/master/stacks/common.yml) |
 
 ## Contributing
 
