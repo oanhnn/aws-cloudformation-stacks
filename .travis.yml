@@ -2,7 +2,7 @@ language: python
 
 env:
   global:
-    - AWS_BUCKET="oanhnn/terraform-aws"
+    - AWS_S3_BUCKET=oanhnn-aws-cfn
     # - AWS_KEY
     # - AWS_SECRET
 
@@ -11,16 +11,25 @@ install:
   - pip install awscli
   - pip install cfn-lint
 
+before_script:
+ - yamllint -v
+ - cfn-lint -v
+ - aws --version
+ - export AWS_S3_KEY=commit-${TRAVIS_COMMIT::8}
+
 script:
   - yamllint .
-  - find . -type f -name *.yml | while read file; do set -ex && cfn-lint -i E2520 -t "$file"; done;
+  - find ./templates -type f -name *.yml | while read file; do set -ex && cfn-lint -i E2520 -t "$file"; done;
+  - find ./stacks    -type f -name *.yml | while read file; do set -ex && cfn-lint -i E2520 -t "$file"; done;
+  - find ./templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$AWS_S3_KEY/$file" && aws cloudformation validate-template --template-url "https://s3.amazonaws.com/$AWS_S3_BUCKET/$AWS_S3_KEY/$file" > /dev/null; done;
+  - find ./stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$AWS_S3_KEY/$file" && aws cloudformation validate-template --template-url "https://s3.amazonaws.com/$AWS_S3_BUCKET/$AWS_S3_KEY/$file" > /dev/null; done;
 
 after_success:
   - if [[ "$TRAVIS_BRANCH" == "master" && "$TRAVIS_PULL_REQUEST" == "false" ]]; then
-      find . -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_BUCKET/oanhnn-aws-cf/$TRAVIS_COMMIT/$file" && aws cloudformation validate-template --template-url "https://s3.amazonaws.com/$AWS_BUCKET/oanhnn-aws-cf/$TRAVIS_COMMIT/$file" > /dev/null; done;
-
+      find ./templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/master/$file" > /dev/null; done;
+      find ./stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/master/$file" > /dev/null; done;
     fi
   - if [[ ! -z "$TRAVIS_TAG" ]]; then
-    docker tag $DOCKER_REPO:$BUILD_TAG $DOCKER_REPO:$TRAVIS_TAG;
-    docker push $DOCKER_REPO:$TRAVIS_TAG;
+      find ./templates -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$TRAVIS_TAG/$file" > /dev/null; done;
+      find ./stacks    -type f -name *.yml | while read file; do set -ex && aws s3 cp "$file" "s3://$AWS_S3_BUCKET/$TRAVIS_TAG/$file" > /dev/null; done;
     fi
