@@ -4,8 +4,8 @@ env:
   global:
     - AWS_S3_BUCKET=oanhnn-aws-cfn
     - AWS_DEFAULT_REGION=ap-southeast-1
-    # - AWS_KEY
-    # - AWS_SECRET
+    # - AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+    # - AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 
 install:
   - pip install yamllint
