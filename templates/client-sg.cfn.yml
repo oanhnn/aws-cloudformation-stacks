@@ -18,7 +18,7 @@ Parameters:
 
 Resources:
 
-  ClientSecurityGroup:
+  SecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Client Security Group
@@ -35,4 +35,4 @@ Outputs:
 
   SecurityGroup:
     Description: The Client Security Group
-    Value: !Ref ClientSecurityGroup
+    Value: !Ref SecurityGroup

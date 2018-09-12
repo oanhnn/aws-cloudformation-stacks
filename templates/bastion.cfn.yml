@@ -33,7 +33,7 @@ Parameters:
 
   KeyName:
     Description: 'Optional key pair of the ec2-user to establish a SSH connection to the SSH bastion host/instance.'
-    Type: String
+    Type: AWS::EC2::KeyPair::KeyName
     Default: ''
 
   # https://cloudonaut.io/manage-aws-ec2-ssh-access-with-iam/
@@ -134,12 +134,15 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Bastion Security Group
+      VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
           CidrIp: !Ref SSHFrom
-      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-BastionSecurityGroup
 
   InstanceProfile:
     Type: AWS::IAM::InstanceProfile
@@ -163,7 +166,7 @@ Resources:
       Path: '/'
       ManagedPolicyArns: !If [HasSystemsManagerAccess, ['arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'], []]
       Policies:
-        - PolicyName: 'ec2'
+        - PolicyName: ec2
           PolicyDocument:
             Version: '2012-10-17'
             Statement:

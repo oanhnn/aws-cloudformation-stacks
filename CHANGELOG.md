@@ -33,4 +33,4 @@ and this project adheres to [Semantic Versioning](http://semver.org/spec/v2.0.0.
 
 
 
-[Unreleased]: https://github.com/oanhnn/laravel-pricing-plans/compare/v0.1.0...develop
+[Unreleased]: https://github.com/oanhnn/aws-cloudformation-stacks/compare/v0.1.0...develop

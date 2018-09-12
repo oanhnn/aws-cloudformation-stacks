@@ -1,0 +1,726 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create an EC2 Instance to be Laravel host.
+
+Parameters:
+
+  EnvironmentName:
+    Description: An environment name that will be prefixed to resource names.
+    Type: String
+    MaxLength: 30
+    MinLength: 1
+    AllowedPattern: ^[A-Za-z0-9]*$
+    ConstraintDescription: Must contain only alphanumeric characters and numbers.
+
+  AlertTopicARN:
+    Description: The Alert Topic ARN.
+    Type: String
+    Default: ''
+
+  VpcId:
+    Description: The VPC ID.
+    Type: AWS::EC2::VPC::Id
+
+  PublicSubnets:
+    Description: The public subnets for Web Instance
+    Type: List<AWS::EC2::Subnet::Id>
+
+  PrivateSubnets:
+    Description: The private subnets for Web Instance
+    Type: List<AWS::EC2::Subnet::Id>
+
+  ClientSecurityGroup:
+    Description: The security group of client instance.
+    Type: AWS::EC2::SecurityGroup::Id
+
+  BastionSecurityGroup:
+    Description: The security group of bastion instance.
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: ''
+
+  LoadBalancerCertificateArn:
+    Description: 'Optional Amazon Resource Name (ARN) of the certificate to associate with the load balancer.'
+    Type: String
+    Default: ''
+
+  KeyName:
+    Description: 'The key pair of the ec2-user to establish a SSH connection to the Web host/instance.'
+    Type: AWS::EC2::KeyPair::KeyName
+    Default: ''
+
+  InstanceType:
+    Description: 'Instance type of the Web host/instance.'
+    Type: String
+    AllowedValues:
+      - t2.nano
+      - t2.micro
+      - t2.small
+      - t2.medium
+    Default: t2.micro
+
+  LogsRetentionInDays:
+    Description: Specifies the number of days you want to retain log events.
+    Type: Number
+    Default: 14
+    AllowedValues: [1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653]
+
+  S3BucketArn:
+    Description: The S3 bucket ARN
+    Type: String
+    Default: ''
+
+Mappings:
+  # Amazon Linux 2 - https://aws.amazon.com/amazon-linux-2/release-notes/
+  RegionMap:
+    ap-south-1:
+      AMI: 'ami-d783a9b8'
+    eu-west-3:
+      AMI: 'ami-2cf54551'
+    eu-west-2:
+      AMI: 'ami-b8b45ddf'
+    eu-west-1:
+      AMI: 'ami-466768ac'
+    ap-northeast-2:
+      AMI: 'ami-afd86dc1'
+    ap-northeast-1:
+      AMI: 'ami-e99f4896'
+    sa-east-1:
+      AMI: 'ami-6dca9001'
+    ca-central-1:
+      AMI: 'ami-0ee86a6a'
+    ap-southeast-1:
+      AMI: 'ami-05868579'
+    ap-southeast-2:
+      AMI: 'ami-39f8215b'
+    eu-central-1:
+      AMI: 'ami-7c4f7097'
+    us-east-1:
+      AMI: 'ami-b70554c8'
+    us-east-2:
+      AMI: 'ami-8c122be9'
+    us-west-1:
+      AMI: 'ami-e0ba5c83'
+    us-west-2:
+      AMI: 'ami-a9d09ed1'
+
+Conditions:
+
+  HasAlertTopic: !Not [!Equals [!Ref AlertTopicARN, '']]
+  HasBastionSG: !Not [!Equals [!Ref BastionSecurityGroup, '']]
+  HasNotBastionSG: !Equals [!Ref BastionSecurityGroup, '']
+  HasLoadBalancerCertificateArn: !Not [!Equals [!Ref LoadBalancerCertificateArn, '']]
+
+Resources:
+
+  Logs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogsRetentionInDays
+
+  ALBSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: ALB Security Group
+      VpcId: !Ref VpcId
+
+  ALBSecurityGroupInHttpWorld:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 80
+      CidrIp: '0.0.0.0/0'
+
+  ALBSecurityGroupInHttpsWorld:
+    Condition: HasLoadBalancerCertificateArn
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: '0.0.0.0/0'
+
+  SecurityGroup:
+    Condition: HasBastionSG
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH Security Group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - SourceSecurityGroupId: !Ref ALBSecurityGroup
+          FromPort: 80
+          ToPort: 80
+          IpProtocol: tcp
+
+  SecurityGroupInSSHBastion:
+    Condition: HasBastionSG
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      SourceSecurityGroupId: !Ref BastionSecurityGroup
+
+  SecurityGroupInSSHWorld:
+    Condition: HasNotBastionSG
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroup
+      IpProtocol: tcp
+      FromPort: 22
+      ToPort: 22
+      CidrIp: '0.0.0.0/0'
+
+  HTTPCodeELB5XXTooHighAlarm:
+    Condition: HasAlertTopic
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Application load balancer returns 5XX HTTP status codes
+      Namespace: 'AWS/ApplicationELB'
+      MetricName: HTTPCode_ELB_5XX_Count
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+        - !Ref AlertTopicARN
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt LoadBalancer.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt DefaultTargetGroup.TargetGroupFullName
+
+  HTTPCodeTarget5XXTooHighAlarm:
+    Condition: HasAlertTopic
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Application load balancer receives 5XX HTTP status codes from targets
+      Namespace: 'AWS/ApplicationELB'
+      MetricName: HTTPCode_Target_5XX_Count
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+        - !Ref AlertTopicARN
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt LoadBalancer.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt DefaultTargetGroup.TargetGroupFullName
+
+  RejectedConnectionCountTooHighAlarm:
+    Condition: HasAlertTopic
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Application load balancer rejected connections because the load balancer had reached its maximum number of connections
+      Namespace: 'AWS/ApplicationELB'
+      MetricName: RejectedConnectionCount
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+        - !Ref AlertTopicARN
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt LoadBalancer.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt DefaultTargetGroup.TargetGroupFullName
+
+  TargetConnectionErrorCountTooHighAlarm:
+    Condition: HasAlertTopic
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Application load balancer could not connect to targets'
+      Namespace: 'AWS/ApplicationELB'
+      MetricName: TargetConnectionErrorCount
+      Statistic: Sum
+      Period: 60
+      EvaluationPeriods: 1
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 0
+      AlarmActions:
+        - !Ref AlertTopicARN
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !GetAtt LoadBalancer.LoadBalancerFullName
+        - Name: TargetGroup
+          Value: !GetAtt DefaultTargetGroup.TargetGroupFullName
+
+  LoadBalancer: # not monitored, but DefaultTargetGroup is monitored!
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: 'internet-facing'
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets: !Ref PublicSubnets
+
+  DefaultTargetGroup: # this is used as the fall-back target group and is used to health checking the ECS agent. Services use their own ListenerRules to accept traffic based on path prefixes.
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 15
+      HealthCheckPort: '80'
+      HealthCheckPath: '/'
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 2
+      Matcher:
+        HttpCode: '200-299'
+      Port: 80 # port 80 is a reserved port that is never used by the agent, so we are safe to use it here
+      Protocol: HTTP
+      VpcId: !Ref VpcId
+      TargetGroupAttributes:
+        - Key: 'deregistration_delay.timeout_seconds'
+          Value: '0'
+
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref DefaultTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  HttpsListener:
+    Condition: HasLoadBalancerCertificateArn
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      Certificates:
+        - CertificateArn: !Ref LoadBalancerCertificateArn
+      DefaultActions:
+        - TargetGroupArn: !Ref DefaultTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: '/'
+      Roles:
+        - !Ref IAMRole
+
+  IAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'ec2.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      Policies:
+        - PolicyName: ec2
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ec2:AssociateAddress'
+                Resource:
+                  - '*'
+        - PolicyName: logs
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'logs:DescribeLogStreams'
+                Resource:
+                  - 'arn:aws:logs:*:*:*'
+        - PolicyName: s3
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:Put*'
+                  - 's3:ListBucket'
+                  - 's3:*MultipartUpload*'
+                  - 's3:Get*'
+                Resource:
+                  - !Ref S3BucketArn
+
+  LaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      'AWS::CloudFormation::Init':
+        configSets:
+          default: [awslogs, config]
+        awslogs:
+          packages:
+            yum:
+              awslogs: []
+          files:
+            '/etc/awslogs/awscli.conf':
+              content: !Sub |
+                [default]
+                region = ${AWS::Region}
+                [plugins]
+                cwlogs = cwlogs
+              mode: '000644'
+              owner: root
+              group: root
+            '/etc/awslogs/awslogs.conf':
+              content: !Sub |
+                [general]
+                state_file = /var/lib/awslogs/agent-state
+                [/var/log/amazon/ssm/amazon-ssm-agent.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/amazon/ssm/amazon-ssm-agent.log
+                log_stream_name = {instance_id}/var/log/amazon/ssm/amazon-ssm-agent.log
+                log_group_name = ${Logs}
+                [/var/log/amazon/ssm/errors.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/amazon/ssm/errors.log
+                log_stream_name = {instance_id}/var/log/amazon/ssm/errors.log
+                log_group_name = ${Logs}
+                [/var/log/audit/audit.log]
+                file = /var/log/audit/audit.log
+                log_stream_name = {instance_id}/var/log/audit/audit.log
+                log_group_name = ${Logs}
+                [/var/log/awslogs.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/awslogs.log
+                log_stream_name = {instance_id}/var/log/awslogs.log
+                log_group_name = ${Logs}
+                [/var/log/boot.log]
+                file = /var/log/boot.log
+                log_stream_name = {instance_id}/var/log/boot.log
+                log_group_name = ${Logs}
+                [/var/log/cfn-hup.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-hup.log
+                log_stream_name = {instance_id}/var/log/cfn-hup.log
+                log_group_name = ${Logs}
+                [/var/log/cfn-init-cmd.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-init-cmd.log
+                log_stream_name = {instance_id}/var/log/cfn-init-cmd.log
+                log_group_name = ${Logs}
+                [/var/log/cfn-init.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-init.log
+                log_stream_name = {instance_id}/var/log/cfn-init.log
+                log_group_name = ${Logs}
+                [/var/log/cfn-wire.log]
+                datetime_format = %Y-%m-%d %H:%M:%S
+                file = /var/log/cfn-wire.log
+                log_stream_name = {instance_id}/var/log/cfn-wire.log
+                log_group_name = ${Logs}
+                [/var/log/cloud-init-output.log]
+                file = /var/log/cloud-init-output.log
+                log_stream_name = {instance_id}/var/log/cloud-init-output.log
+                log_group_name = ${Logs}
+                [/var/log/cloud-init.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cloud-init.log
+                log_stream_name = {instance_id}/var/log/cloud-init.log
+                log_group_name = ${Logs}
+                [/var/log/cron]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/cron
+                log_stream_name = {instance_id}/var/log/cron
+                log_group_name = ${Logs}
+                [/var/log/dmesg]
+                file = /var/log/dmesg
+                log_stream_name = {instance_id}/var/log/dmesg
+                log_group_name = ${Logs}
+                [/var/log/grubby_prune_debug]
+                file = /var/log/grubby_prune_debug
+                log_stream_name = {instance_id}/var/log/grubby_prune_debug
+                log_group_name = ${Logs}
+                [/var/log/maillog]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/maillog
+                log_stream_name = {instance_id}/var/log/maillog
+                log_group_name = ${Logs}
+                [/var/log/messages]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/messages
+                log_stream_name = {instance_id}/var/log/messages
+                log_group_name = ${Logs}
+                [/var/log/secure]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/secure
+                log_stream_name = {instance_id}/var/log/secure
+                log_group_name = ${Logs}
+                [/var/log/yum.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/yum.log
+                log_stream_name = {instance_id}/var/log/yum.log
+                log_group_name = ${Logs}
+              mode: '000644'
+              owner: root
+              group: root
+          services:
+            sysvinit:
+              awslogsd:
+                enabled: true
+                ensureRunning: true
+                packages:
+                  yum:
+                    - awslogs
+                files:
+                  - '/etc/awslogs/awslogs.conf'
+                  - '/etc/awslogs/awscli.conf'
+        config:
+          packages:
+            yum:
+              mariadb: []
+          files:
+            '/etc/cfn/cfn-hup.conf':
+              content: !Sub |
+                [main]
+                stack=${AWS::StackId}
+                region=${AWS::Region}
+                interval=1
+              mode: '000400'
+              owner: root
+              group: root
+            '/etc/cfn/hooks.d/cfn-auto-reloader.conf':
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.LaunchConfiguration.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init --verbose --stack=${AWS::StackName} --region=${AWS::Region} --resource=LaunchConfiguration
+                runas=root
+          commands:
+            10_enable_nginx_repo:
+              command: 'amazon-linux-extras enable nginx1.12'
+              test: '[ ! grep -Fxq "[amzn2extra-nginx1.12]" /etc/yum.repos.d/amzn2-extras.repo ]'
+            10_enable_php_repo:
+              command: 'amazon-linux-extras enable php7.2'
+              test: '[ ! grep -Fxq "[amzn2extra-php7.2]" /etc/yum.repos.d/amzn2-extras.repo ]'
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - '/etc/cfn/cfn-hup.conf'
+                  - '/etc/cfn/hooks.d/cfn-auto-reloader.conf'
+        nginx:
+          packages:
+            yum:
+              nginx: []
+          files:
+            '/etc/awslogs/config/nginx.conf':
+              content: !Sub |
+                [/var/log/nginx/access.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/nginx/access.log
+                log_stream_name = {instance_id}/var/log/nginx/access.log
+                log_group_name = ${Logs}
+                [/var/log/nginx/error.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/nginx/error.log
+                log_stream_name = {instance_id}
+                log_group_name = ${Logs}/var/log/nginx/error.log
+              mode: '000600'
+              owner: root
+              group: root
+          commands:
+            40_user_group:
+              command: 'usermod -a -G apache ec2-user'
+          services:
+            sysvinit:
+              nginx:
+                enabled: true
+                ensureRunning: true
+                packages:
+                  yum:
+                    - nginx
+                files:
+                  - '/etc/nginx/nginx.conf'
+                  - '/etc/nginx/conf.d/*'
+                  - '/etc/nginx/default.d/*'
+        php:
+          packages:
+            yum:
+              php-bcmath: []
+              php-cli: []
+              php-fpm: []
+              php-gd: []
+              php-intl: []
+              php-json: []
+              php-mbstring: []
+              php-mysqlnd: []
+              php-opcache: []
+              php-pdo: []
+              # php-pecl-igbinary: []
+              # php-pecl-redis: []
+              # php-pecl-imagick: []
+              php-xml: []
+              php-zip: []
+          files:
+            '/etc/awslogs/config/php.conf':
+              content: !Sub |
+                [/var/log/php-fpm/www-error.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/php-fpm/www-error.log
+                log_stream_name = {instance_id}/var/log/php-fpm/www-error.log
+                log_group_name = ${Logs}
+                [/var/log/php-fpm/www-slow.log]
+                datetime_format = %b %d %H:%M:%S
+                file = /var/log/php-fpm/www-slow.log
+                log_stream_name = {instance_id}/var/log/php-fpm/www-slow.log
+                log_group_name = ${Logs}
+              mode: '000600'
+              owner: root
+              group: root
+          commands:
+            50_php_upload_max_filesize:
+              command: 'sed -i "s|;*upload_max_filesize =.*|upload_max_filesize=10M|i" /etc/php.ini'
+            51_php_max_file_uploads:
+              command: 'sed -i "s|;*max_file_uploads =.*|max_file_uploads=20|i" /etc/php.ini'
+            52_php_post_max_size:
+              command: 'sed -i "s|;*post_max_size =.*|post_max_size=20M|i" /etc/php.ini'
+            53_php_expose_php:
+              command: 'sed -i "s|;*expose_php=.*|expose_php=0|i" /etc/php.ini'
+          services:
+            sysvinit:
+              php-fpm:
+                enabled: true
+                ensureRunning: true
+                packages:
+                  yum:
+                    - php-*
+                files:
+                  - '/etc/php.ini'
+                  - '/etc/php.d/*'
+                  - '/etc/php-fpm.conf'
+                  - '/etc/php-fpm.d/*'
+        php-extra:
+          packages:
+            yum:
+              gcc: []
+              php-devel: []
+              php-pear: []
+              ImageMagick-devel: []
+          files:
+            '/etc/php.d/20-imagick.ini':
+              content: |
+                extension=imagick.so
+              mode: '000600'
+              owner: root
+              group: root
+            '/etc/php.d/20-redis.ini':
+              content: |
+                extension=redis.so
+              mode: '000600'
+              owner: root
+              group: root
+          commands:
+            60_ext_imagick:
+              command: pecl install imagick
+            61_ext_redis:
+              command: pecl install redis
+            69_restart_fpm:
+              command: service php-fpm restart
+        nodejs:
+          packages:
+            yum:
+              gcc-c++: []
+              make: []
+          commands:
+            70_add_repo:
+              command: curl --silent --location https://rpm.nodesource.com/setup_8.x | bash -
+            71_install_nodejs:
+              command: yum install -y nodejs
+            72_update_npm:
+              command: npm install -y -g npm
+            73_install_laravel_echo_server:
+              command: npm install -y -g laravel-echo-server
+
+    Properties:
+      AssociatePublicIpAddress: true
+      EbsOptimized: false
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !FindInMap [RegionMap, !Ref 'AWS::Region', AMI]
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+        - !Ref SecurityGroup
+        - !Ref ClientSecurityGroup
+      KeyName: !Ref KeyName
+      UserData:
+        'Fn::Base64': !Sub |
+          #!/bin/bash -ex
+          /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource LaunchConfiguration --region ${AWS::Region}
+          /opt/aws/bin/cfn-signal -e 0 --stack ${AWS::StackName} --resource AutoScalingGroup --region ${AWS::Region}
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: '2'
+      LaunchConfigurationName: !Ref LaunchConfiguration
+      MaxSize: '4'
+      MinSize: '2'
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-WebAutoScalingGroup
+          PropagateAtLaunch: true
+      NotificationConfigurations: !If
+        - HasAlertTopic
+        - - NotificationTypes:
+              - 'autoscaling:EC2_INSTANCE_LAUNCH_ERROR'
+              - 'autoscaling:EC2_INSTANCE_TERMINATE_ERROR'
+            TopicARN: !Ref AlertTopicARN
+        - []
+      VPCZoneIdentifier: !Ref PrivateSubnets
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT10M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        PauseTime: PT10M
+        SuspendProcesses:
+          - HealthCheck
+          - ReplaceUnhealthy
+          - AZRebalance
+          - AlarmNotification
+          - ScheduledActions
+        WaitOnResourceSignals: true
+
+  CPUTooHighAlarm:
+    Condition: HasAlertTopic
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: 'Average CPU utilization over last 10 minutes higher than 80%'
+      Namespace: 'AWS/EC2'
+      MetricName: CPUUtilization
+      Statistic: Average
+      Period: 600
+      EvaluationPeriods: 1
+      ComparisonOperator: GreaterThanThreshold
+      Threshold: 80
+      AlarmActions:
+        - !Ref AlertTopicARN
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref AutoScalingGroup
+
+Outputs:
+
+  StackName:
+    Description: Stack Name
+    Value: !Sub ${AWS::StackName}
