@@ -37,7 +37,7 @@ Resources:
             Action:
               - 's3:*'
             Resource:
-              - !Sub 'arn:aws:s3:::*/*'
+              - 'arn:aws:s3:::*/*'
 
 Outputs:
 
