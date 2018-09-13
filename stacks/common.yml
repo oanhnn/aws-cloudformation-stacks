@@ -286,12 +286,10 @@ Resources:
       TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/${TemplateKey}/s3-endpoint.cfn.yml
       Parameters:
         VpcId: !GetAtt VpcStack.Outputs.VpcId
-        PrivateRouteTables:
-          Fn::If:
-            - IsProduction
-            - !Join [',', [!GetAtt VpcStack.Outputs.PrivateRouteTable1, !GetAtt VpcStack.Outputs.PrivateRouteTable2]]
-            - !GetAtt VpcStack.Outputs.PrivateRouteTable1
-        S3Bucket: !GetAtt S3BucketStack.Outputs.Bucket
+        PrivateRouteTables: !If
+          - IsProduction
+          - !Join [',', [!GetAtt VpcStack.Outputs.PrivateRouteTable1, !GetAtt VpcStack.Outputs.PrivateRouteTable2]]
+          - !GetAtt VpcStack.Outputs.PrivateRouteTable1
 
   ClientSGStack:
     Type: AWS::CloudFormation::Stack

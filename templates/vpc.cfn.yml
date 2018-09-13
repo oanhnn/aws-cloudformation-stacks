@@ -452,16 +452,6 @@ Resources:
       SubnetId: !Ref DataSubnet2
       NetworkAclId: !Ref PrivateNetworkAcl
 
-  # SecurityGroup resources
-  ClientSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Client security group
-      VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvironmentName}-ClientSecurityGroup
-
 Outputs:
 
   StackName:
@@ -496,7 +486,3 @@ Outputs:
     Condition: IsProduction
     Description: Private route table id
     Value: !Ref NatRouteTable2
-
-  ClientSecurityGroup:
-    Description: Client security group
-    Value: !Ref ClientSecurityGroup

@@ -21,15 +21,6 @@ Parameters:
     MinLength: 1
     MaxLength: 255
 
-  S3Bucket:
-    Description: The stack name of parent s3 bucket stack based on alert.cfn.yml template.
-    Type: String
-    Default: ''
-
-Conditions:
-
-  HasS3Bucket: !Not [!Equals [!Ref S3Bucket, '']]
-
 Resources:
 
   EndpointS3:
@@ -46,9 +37,7 @@ Resources:
             Action:
               - 's3:*'
             Resource:
-              - !Sub
-                - 'arn:aws:s3:::${BucketName}/*'
-                - BucketName: !If [HasS3Bucket, !Ref S3Bucket, '*']
+              - !Sub 'arn:aws:s3:::*/*'
 
 Outputs:
 
