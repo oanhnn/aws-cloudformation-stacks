@@ -278,6 +278,7 @@ Resources:
         Access: 'CloudFrontRead'
         Versioning: 'false'
         NoncurrentVersionExpirationInDays: '0'
+        ExpirationInDays: '0'
         Encryption: 'false'
 
   S3EndpointStack:
