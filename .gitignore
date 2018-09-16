@@ -1,6 +1,7 @@
 # User specific & automatically generated files #
 #################################################
 /*.log
+*.params.json
 
 # IDE and editor specific files #
 #################################

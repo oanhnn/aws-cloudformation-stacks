@@ -281,16 +281,16 @@ Resources:
         ExpirationInDays: '0'
         Encryption: 'false'
 
-  S3EndpointStack:
-    Type: AWS::CloudFormation::Stack
-    Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/${TemplateKey}/s3-endpoint.cfn.yml
-      Parameters:
-        VpcId: !GetAtt VpcStack.Outputs.VpcId
-        PrivateRouteTables: !If
-          - IsProduction
-          - !Join [',', [!GetAtt VpcStack.Outputs.PrivateRouteTable1, !GetAtt VpcStack.Outputs.PrivateRouteTable2]]
-          - !GetAtt VpcStack.Outputs.PrivateRouteTable1
+  # S3EndpointStack:
+  #   Type: AWS::CloudFormation::Stack
+  #   Properties:
+  #     TemplateURL: !Sub https://s3.amazonaws.com/${TemplateBucket}/${TemplateKey}/s3-endpoint.cfn.yml
+  #     Parameters:
+  #       VpcId: !GetAtt VpcStack.Outputs.VpcId
+  #       PrivateRouteTables: !If
+  #         - IsProduction
+  #         - !Join [',', [!GetAtt VpcStack.Outputs.PrivateRouteTable1, !GetAtt VpcStack.Outputs.PrivateRouteTable2]]
+  #         - !GetAtt VpcStack.Outputs.PrivateRouteTable1
 
   ClientSGStack:
     Type: AWS::CloudFormation::Stack
